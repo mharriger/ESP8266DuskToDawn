@@ -70,9 +70,9 @@ void IRAM_ATTR handleButtonPress() {
     led_override = !led_override;
     led_state = !led_state;
     if (led_state) {
-      analogWrite(LED_MOSFET_PIN, LED_PWM_DUTY);
+      fadeToBrightness(LED_PWM_DUTY); // Fade to 75% brightness
     } else {
-      analogWrite(LED_MOSFET_PIN, 0);
+      fadeToBrightness(0); // Fade to 0% brightness
     }
   }
   last_interrupt_time = interrupt_time;
@@ -121,6 +121,21 @@ bool isDark () {
     return false;
   } else {
     return true;
+  }
+}
+
+void fadeToBrightness(int targetBrightness, int stepDelay=20) {
+  int currentDuty = analogRead(LED_MOSFET_PIN); // Read current PWM duty cycle
+  if (currentDuty < targetBrightness) {
+    for (int duty = currentDuty; duty <= targetBrightness; duty++) {
+      analogWrite(LED_MOSFET_PIN, duty);
+      delay(stepDelay);
+    }
+  } else if (currentDuty > targetBrightness) {
+    for (int duty = currentDuty; duty >= targetBrightness; duty--) {
+      analogWrite(LED_MOSFET_PIN, duty);
+      delay(stepDelay);
+    }
   }
 }
 
@@ -207,10 +222,10 @@ void loop() {
   bool is_dark = isDark();
   if (is_dark) {
     Serial.println("It is dark");
-    analogWrite(LED_MOSFET_PIN, LED_PWM_DUTY); // 75% brightness
+    fadeToBrightness(LED_PWM_DUTY); // Fade to 75% brightness
   } else {
     Serial.println("It is daylight");
-    analogWrite(LED_MOSFET_PIN, 0); // LEDs OFF
+    fadeToBrightness(0); // Fade to 0% brightness
   }
 
   delay(60000); // update once per minute
