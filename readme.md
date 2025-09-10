@@ -1,4 +1,4 @@
-# ESP8266 Dusck to Dawn LED Controller
+# ESP8266 Dusk to Dawn LED Controller
 
 This project is an ESP8266 LED strip controller built using PlatformIO. It is designed to control an LED light strip, turning it on only when it is dark outside.
 
