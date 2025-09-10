@@ -5,8 +5,9 @@
   It automatically turns the LEDs on at 75% brightness (using PWM and a MOSFET) when it is dark,
   and off during daylight, based on calculated sunrise and sunset times for Omaha, NE.
 
+  Be sure to set the parameters in config.h
+
   Features:
-    - WiFi setup with SmartConfig fallback
     - NTP time synchronization and timezone/DST handling
     - Calculates daily sunrise and sunset using the SunSet library
     - Recalculates times at 5am each day
@@ -18,14 +19,11 @@
     - External MOSFET to switch 12V LED supply (gate driven by GPIO12)
     - LEDs powered by 12V supply
 
-  Location: Omaha, NE (41.2565, -95.9345)
-
   Wiring Notes:
   - Connect the MOSFET source to ground.
   - Connect the MOSFET drain to the negative side of the LED strip.
   - Connect the positive side of the LED strip to 12V (+).
-  - Gate is driven by ESP8266 GPIO12 (D6) through a small resistor (e.g., 220Ω).
-  - Optionally, add a pull-down resistor (10kΩ) from gate to source to keep MOSFET off at boot.
+  - Gate is connected to ESP8266 GPIO12 (D6), and through a small resistor (e.g., 220Ω) to ground.
 
 */
 
@@ -43,14 +41,9 @@ volatile int led_state = 0;
 #include <time.h>
 #include <sunset.h>
 
+#include "config.h" // Configurable parameters
 
-// Omaha, NE
-#define LATITUDE        41.2565
-#define LONGITUDE       -95.9345
-#define TZ_OFFSET       -6
-#define DST_OFFSET      -5
-
-const char* TZ_STR = "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00";
+const char* TZ_STR = TIMEZONE;
 SunSet sun;
 
 time_t sunset_time;
@@ -101,8 +94,8 @@ void setup() {
   Serial.begin(115200);
 
   // Hardcoded WiFi credentials
-  const char* ssid = "ESSID_HERE";
-  const char* password = "PW_HERE";
+  const char* ssid = WIFI_SSID;
+  const char* password = WIFI_PASSWORD;
 
   WiFi.mode(WIFI_STA);
   delay(500);
@@ -131,27 +124,35 @@ bool isDark () {
   }
 }
 
+/*
+ * Use the SunSet library to calculate sunrise and sunset times
+ * Calculates "official" sunset, when the center of the sun is
+ * 0.833 degrees below the horizon
+ */
 void calcSunriseSunset() {
   time_t tnow;
   tnow = time(nullptr);
   struct tm *t = localtime(&tnow);
 
   sun.setPosition(LATITUDE, LONGITUDE, t->tm_isdst ? DST_OFFSET : TZ_OFFSET);
+  Serial.printf("Calculating sunrise/sunset for date %04d-%02d-%02d\n", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
   sun.setCurrentDate(t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
 
-  int sunrise_minutes = sun.calcCivilSunrise();
-  int sunset_minutes = sun.calcCivilSunset();
+  double sunrise_minutes = sun.calcSunrise();
+  double sunset_minutes = sun.calcSunset();
+
+  Serial.printf("Sunrise at %.2f minutes, Sunset at %.2f minutes\n", sunrise_minutes, sunset_minutes);
 
   // Convert those into time_t for today
   struct tm sunriseTm = *t;
   sunriseTm.tm_hour = sunrise_minutes / 60;
-  sunriseTm.tm_min  = sunrise_minutes % 60;
+  sunriseTm.tm_min  = (int) sunrise_minutes % 60;
   sunriseTm.tm_sec  = 0;
   sunrise_time = mktime(&sunriseTm);
 
   struct tm sunsetTm = *t;
   sunsetTm.tm_hour = sunset_minutes / 60;
-  sunsetTm.tm_min  = sunset_minutes % 60;
+  sunsetTm.tm_min  = (int) sunset_minutes % 60;
   sunsetTm.tm_sec  = 0;
   sunset_time = mktime(&sunsetTm);
 }
@@ -171,29 +172,20 @@ void loop() {
 #endif
   // Wait for NTP time to be set before first calculation
   static bool time_initialized = false;
-  static int last_calc_yday = -1;
   time_t tnow = time(nullptr);
   struct tm *t = localtime(&tnow);
 
   if (!time_initialized) {
-    // Wait until year is at least 2020 (NTP set)
+    // Wait until year is at least 2020
     if (t->tm_year + 1900 < 2020) {
       Serial.println("Waiting for NTP time...");
       delay(1000);
       return;
     }
-    calcSunriseSunset();
-    last_calc_yday = t->tm_yday;
-    time_initialized = true;
-    Serial.println("Initial sunrise/sunset calculated after NTP sync.");
+    Serial.println("Initial NTP sync succeeded");
   }
 
-  // Recalculate at 4am if not already done for this calendar day
-  if (t->tm_hour >= 4 && t->tm_yday != last_calc_yday) {
-    calcSunriseSunset();
-    last_calc_yday = t->tm_yday;
-    Serial.println("Recalculated sunrise and sunset times.");
-  }
+  calcSunriseSunset();
 
   // Print current, sunrise, and sunset times
   char buf[32];
