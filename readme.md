@@ -38,7 +38,7 @@ This project is an ESP8266 LED strip controller built using PlatformIO. It was o
 ## Configuration
 
 - Compiling with -DENABLE_BUTTON_OVERRIDE will allow a momentary pushbutton on GPIO 0 to toggle the light on or off, overriding the schedule.
-- Edit main.cpp to set location, time zone, wifi credentials.
+- Edit src/config.h to set location, time zone, wifi credentials.
 
 ## License
 
