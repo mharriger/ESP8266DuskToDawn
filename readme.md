@@ -1,6 +1,6 @@
-# Address Sign Controller
+# ESP8266 Dusck to Dawn LED Controller
 
-This project is an ESP8266 LED strip controller built using PlatformIO. It was originally designed to control an LED-backlit house address sign, turning it on only when it is dark outside.
+This project is an ESP8266 LED strip controller built using PlatformIO. It is designed to control an LED light strip, turning it on only when it is dark outside.
 
 ## Features
 
@@ -21,7 +21,7 @@ This project is an ESP8266 LED strip controller built using PlatformIO. It was o
 1. **Clone the repository:**
     ```bash
     git clone <repository-url>
-    cd AddressSignController
+    cd ESP8266DuskToDawn
     ```
 
 2. **Open with PlatformIO:**

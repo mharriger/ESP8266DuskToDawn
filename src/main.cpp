@@ -1,9 +1,9 @@
 /*
-  Address Sign Controller - ESP8266 (Huzzah)
+  Dusk to Dawn - ESP8266 (Huzzah)
 
-  This code controls an address sign's LED lighting using an ESP8266 (Huzzah board).
+  This code controls LED lighting using an ESP8266 (Huzzah board).
   It automatically turns the LEDs on at 75% brightness (using PWM and a MOSFET) when it is dark,
-  and off during daylight, based on calculated sunrise and sunset times for Omaha, NE.
+  and off during daylight, based on calculated sunrise and sunset times for a configurable location.
 
   Be sure to set the parameters in config.h
 
