@@ -33,7 +33,7 @@
 volatile bool led_override = false;
 volatile int led_state = 0;
 #endif
-#define LED_PWM_DUTY 255 // 75% brightness
+#define LED_PWM_DUTY 192 // 75% brightness
 #include <Arduino.h>
 
 #include <ESP8266WiFi.h>
@@ -49,6 +49,8 @@ SunSet sun;
 time_t sunset_time;
 time_t sunrise_time;
 
+int current_pwm_duty = 0;
+
 boolean attemptConnect() {
   int i;
 
@@ -61,6 +63,8 @@ boolean attemptConnect() {
   return (i != 0);	// return truth of "we did NOT time out"
 }
 
+void fadeToBrightness(int targetBrightness, int stepDelay=20); // Forward declaration
+
 #ifdef ENABLE_BUTTON_OVERRIDE
 // Interrupt Service Routine for button press
 void IRAM_ATTR handleButtonPress() {
@@ -68,12 +72,6 @@ void IRAM_ATTR handleButtonPress() {
   unsigned long interrupt_time = millis();
   if (interrupt_time - last_interrupt_time > 200) { // debounce 200ms
     led_override = !led_override;
-    led_state = !led_state;
-    if (led_state) {
-      fadeToBrightness(LED_PWM_DUTY); // Fade to 75% brightness
-    } else {
-      fadeToBrightness(0); // Fade to 0% brightness
-    }
   }
   last_interrupt_time = interrupt_time;
 }
@@ -93,7 +91,7 @@ void setup() {
 #endif
   Serial.begin(115200);
 
-  // Hardcoded WiFi credentials
+  // Wifi credentials from config.h
   const char* ssid = WIFI_SSID;
   const char* password = WIFI_PASSWORD;
 
@@ -124,17 +122,20 @@ bool isDark () {
   }
 }
 
-void fadeToBrightness(int targetBrightness, int stepDelay=20) {
-  int currentDuty = analogRead(LED_MOSFET_PIN); // Read current PWM duty cycle
-  if (currentDuty < targetBrightness) {
-    for (int duty = currentDuty; duty <= targetBrightness; duty++) {
-      analogWrite(LED_MOSFET_PIN, duty);
+void fadeToBrightness(int targetBrightness, int stepDelay) {
+  if (current_pwm_duty < targetBrightness) {
+    Serial.printf("Fading up\n");
+    while (current_pwm_duty <= targetBrightness) {
+      analogWrite(LED_MOSFET_PIN, current_pwm_duty);
       delay(stepDelay);
+      current_pwm_duty++;
     }
-  } else if (currentDuty > targetBrightness) {
-    for (int duty = currentDuty; duty >= targetBrightness; duty--) {
-      analogWrite(LED_MOSFET_PIN, duty);
+  } else if (current_pwm_duty > targetBrightness) {
+    Serial.printf("Fading down\n");
+    while (current_pwm_duty >= targetBrightness) {
+      analogWrite(LED_MOSFET_PIN, current_pwm_duty);
       delay(stepDelay);
+      current_pwm_duty--;
     }
   }
 }
@@ -174,15 +175,18 @@ void calcSunriseSunset() {
 
 void loop() {
 #ifdef ENABLE_BUTTON_OVERRIDE
+  Serial.printf("Override: %s, State: %s\n", led_override ? "ON" : "OFF", led_state ? "ON" : "OFF");
   if (led_override) {
     // Print override state for debug
-    if (led_state) {
+    if (!isDark() && !led_state) {
       Serial.println("LEDs ON (override)");
-    } else {
+      fadeToBrightness(LED_PWM_DUTY, 20); // Fade to 75% brightness
+      led_state = true;
+    } else if (isDark() && led_state) {
       Serial.println("LEDs OFF (override)");
+      fadeToBrightness(0, 20); // Fade to 0% brightness
+      led_state = false;
     }
-    delay(1000); // Slow down serial output in override mode
-    return;
   }
 #endif
   // Wait for NTP time to be set before first calculation
@@ -222,10 +226,10 @@ void loop() {
   bool is_dark = isDark();
   if (is_dark) {
     Serial.println("It is dark");
-    fadeToBrightness(LED_PWM_DUTY); // Fade to 75% brightness
+    fadeToBrightness(LED_PWM_DUTY, 20); // Fade to 75% brightness
   } else {
     Serial.println("It is daylight");
-    fadeToBrightness(0); // Fade to 0% brightness
+    fadeToBrightness(0, 20); // Fade to 0% brightness
   }
 
   delay(60000); // update once per minute
